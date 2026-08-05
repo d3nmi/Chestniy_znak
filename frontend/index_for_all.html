@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Честный ЗНАК — маркировка v2 (Server Edition)</title>
+<style>
+  :root {
+    --bg: #f2f3f5; --surface: #ffffff; --surface2: #f7f8fa;
+    --border: #dde1e7; --border2: #c8cdd6;
+    --text: #1a1d23; --text2: #4a5060; --text3: #8a90a0;
+    --accent: #2563eb; --accent-h: #1d4ed8;
+    --green: #16a34a; --green-bg: #f0fdf4;
+    --amber: #d97706; --amber-bg: #fffbeb;
+    --red: #dc2626; --red-bg: #fef2f2;
+    --r: 6px; --rl: 10px;
+    --lbl-w: 219px; --lbl-pad: 8px; --lbl-gap: 4px;
+    --lbl-print-w: 58mm; --lbl-print-h: 40mm;
+    --lbl-gtin-size: 13px; 
+    --lbl-dm-size: 110px; 
+    --lbl-km-size: 12px; 
+    --lbl-km-lh: 1.2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; font-size: 13px; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .shell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; height: 48px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .topbar-logo { width: 28px; height: 28px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 700; }
+  .topbar-title { font-size: 14px; font-weight: 600; }
+  .topbar-sub { font-size: 12px; color: var(--text3); flex: 1; }
+  
+  .server-status { font-size: 11px; padding: 3px 12px; border-radius: 10px; white-space: nowrap; border: 1px solid var(--border); display: flex; align-items: center; gap: 6px; font-weight: 500;}
+  .server-status.ok { background: var(--green-bg); color: var(--green); border-color: #bbf7d0; }
+  .server-status.err { background: var(--red-bg); color: var(--red); border-color: #fca5a5; }
+
+  .bwip-status { font-size: 11px; padding: 2px 8px; border-radius: 4px; }
+  .bwip-status.ok  { background: var(--green-bg); color: var(--green); }
+  .bwip-status.err { background: var(--red-bg); color: var(--red); }
+  
+  .body-wrap { display: flex; flex: 1; overflow: hidden; }
+  .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 14px 12px; gap: 6px; overflow-y: auto; }
+  .sb-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text3); padding: 10px 4px 4px; }
+  .sb-label:first-child { padding-top: 2px; }
+  .stat-row { display: flex; flex-direction: column; gap: 5px; }
+  .stat { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; }
+  .stat-name { font-size: 11px; color: var(--text2); }
+  .stat-val { font-size: 18px; font-weight: 600; }
+  .stat-val.green { color: var(--green); } .stat-val.amber { color: var(--amber); } .stat-val.red { color: var(--red); }
+  .stat-val.muted { color: var(--text3); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 12px; font-size: 13px; font-family: inherit; border: 1px solid var(--border2); border-radius: var(--r); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; transition: background .1s; width: 100%; }
+  .btn:hover { background: var(--surface2); } .btn:active { transform: scale(.98); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-h); }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--text2); padding: 5px 8px; font-size: 12px; width: auto; }
+  .btn.ghost:hover { background: var(--surface2); border-color: var(--border); }
+  .btn.danger { color: var(--red); border-color: #fca5a5; background: var(--red-bg); font-size:11px;}
+  .autoprint-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--r); cursor: pointer; user-select: none; }
+  .autoprint-row input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .autoprint-label { font-size: 12px; color: var(--text2); line-height: 1.3; }
+  .autoprint-row.active { background: #eff6ff; border-color: #bfdbfe; }
+  .autoprint-row.active .autoprint-label { color: var(--accent); font-weight: 500; }
+  .content { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+  .tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .tab { padding: 8px 16px; font-size: 13px; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; user-select: none; }
+  .tab:hover { color: var(--text); } .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+  .scanner-zone { background: var(--surface); border: 1px solid var(--border); border-radius: var(--rl); padding: 14px 16px; }
+  .scanner-hdr { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text3); margin-bottom: 9px; display: flex; align-items: center; gap: 6px; }
+  .scanner-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+  .scan-input { width: 100%; padding: 10px 14px; font-size: 15px; font-family: inherit; border: 1px solid var(--border2); border-radius: var(--r); background: var(--surface2); color: var(--text); transition: border-color .15s, box-shadow .15s; }
+  .scan-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.1); background: var(--surface); }
+  .scan-input:disabled { opacity: 0.6; cursor: not-allowed; }
+  .scan-hint { font-size: 11px; color: var(--text3); margin-top: 6px; }
+  .autoprint-indicator { display: none; margin-top: 8px; padding: 6px 10px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--r); font-size: 11px; color: var(--accent); font-weight: 500; }
+  .autoprint-indicator.visible { display: flex; align-items: center; gap: 6px; }
+  .msg { padding: 9px 13px; border-radius: var(--r); font-size: 13px; display: none; }
+  .msg.visible { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .msg.ok   { background: var(--green-bg); color: var(--green); border: 1px solid #bbf7d0; }
+  .msg.err  { background: var(--red-bg);   color: var(--red);   border: 1px solid #fca5a5; }
+  .msg.warn { background: var(--amber-bg); color: var(--amber); border: 1px solid #fde68a; }
+  .msg-text { flex: 1; }
+  .preview-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--rl); overflow: hidden; display: none; }
+  .preview-card.visible { display: block; }
+  .preview-hdr { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--surface2); }
+  .preview-hdr-title { font-size: 13px; font-weight: 500; }
+  .preview-body { padding: 20px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; background: #e5e7eb; }
+  
+  .label-wrapper { display: inline-block; }
+  .label-paper { background: #fff; width: var(--lbl-w); padding: var(--lbl-pad); font-family: Arial, Helvetica, sans-serif; color: #111; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: var(--lbl-gap); }
+  .lbl-gtin-top { font-size: var(--lbl-gtin-size); font-weight: 700; text-align: center; word-break: break-all; }
+  .lbl-dm { line-height: 0; }
+  .lbl-dm canvas { display: block; width: var(--lbl-dm-size); height: var(--lbl-dm-size); image-rendering: pixelated; image-rendering: crisp-edges; }
+  .lbl-km { font-size: var(--lbl-km-size); font-family: Arial, Helvetica, sans-serif; line-height: var(--lbl-km-lh); text-align: center; word-break: break-all; color: #111; max-width: 100%; border-top: 0.5px solid #ccc; padding-top: 4px; width: 100%; }
+  
+  .db-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--rl); overflow: hidden; }
+  .db-body { max-height: 500px; overflow-y: auto; }
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th { position: sticky; top: 0; background: var(--surface2); border-bottom: 1px solid var(--border); padding: 6px 12px; text-align: left; font-weight: 500; color: var(--text3); font-size: 11px; }
+  .data-table td { padding: 7px 12px; border-bottom: 1px solid var(--border); color: var(--text2); }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+  .badge.auto  { background: #eff6ff; color: var(--accent); }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+  
+  @media print {
+    @page { size: var(--lbl-print-w) var(--lbl-print-h); margin: 0; }
+    body, html { width: 100%; height: auto; background: #fff; margin: 0; padding: 0; }
+    
+    .shell, .body-wrap, .content, #tab-scan, .preview-card, .preview-body { 
+      display: block; width: 100%; height: auto; margin: 0; padding: 0; background: #fff; border: none; overflow: visible;
+    }
+    
+    .topbar, .sidebar, .tabs, .scanner-zone, .msg, .db-card, .preview-hdr { 
+      display: none !important; 
+    }
+    
+    .label-wrapper {
+      display: block; 
+      width: var(--lbl-print-w);
+      height: var(--lbl-print-h);
+      page-break-after: always;
+      break-after: page;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    
+    .label-wrapper:last-child { page-break-after: auto; break-after: auto; }
+    
+    .label-paper {
+      width: 100%;
+      height: 100%;
+      display: flex; 
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2mm; 
+      box-sizing: border-box;
+      background: #fff;
+    }
+    
+    .lbl-dm canvas { width: 110px !important; height: 110px !important; }
+    .lbl-gtin-top, .lbl-km { display: block !important; color: #000 !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="topbar">
+    <div class="topbar-logo">ЧЗ</div>
+    <span class="topbar-title">Честный ЗНАК</span>
+    <span class="topbar-sub">— маркировка v2 (Server)</span>
+    <span class="server-status ok" id="server-status-badge">📡 Сервер подключен</span>
+    <span class="bwip-status" id="bwip-status">Загрузка DataMatrix…</span>
+  </div>
+
+  <div class="body-wrap">
+    <div class="sidebar">
+      <div class="sb-label">Статистика склада</div>
+      <div class="stat-row">
+        <div class="stat"><span class="stat-name">Загружено КМ</span><span class="stat-val muted" id="s-total">0</span></div>
+        <div class="stat"><span class="stat-name">Свободных КМ</span><span class="stat-val green" id="s-free">0</span></div>
+        <div class="stat"><span class="stat-name">Напечатано</span><span class="stat-val amber" id="s-used">0</span></div>
+        <div class="stat" title="Коды заблокированы сервером, но не распечатаны"><span class="stat-name">Зависли (Резерв)</span><span class="stat-val red" id="s-reserved">0</span></div>
+      </div>
+      
+      <div class="sb-label">Автопечать</div>
+      <label class="autoprint-row" id="autoprint-row">
+        <input type="checkbox" id="autoprint-cb">
+        <span class="autoprint-label">Печать сразу после сканирования</span>
+      </label>
+      
+      <div class="sb-label">Массовая печать</div>
+      <label class="autoprint-row" id="bulkmode-row">
+        <input type="checkbox" id="bulkmode-cb">
+        <span class="autoprint-label">Массовая печать (указать кол-во)</span>
+      </label>
+      
+      <div class="sb-label">Управление БД</div>
+      <div style="font-size:10px; color:var(--text3); margin-bottom: 6px; line-height: 1.3;">
+        Используйте кнопку ниже только для добавления <b>новых партий</b> кодов в базу данных сервера.
+      </div>
+      <label class="btn primary" style="cursor:pointer" id="btn-import">
+        📥 Дозагрузить новые КМ (Excel)
+        <input type="file" id="xl-file" accept=".xlsx,.xls" style="display:none">
+      </label>
+      
+      <button class="btn danger" id="btn-reset-res" style="margin-top: 8px;">
+        Сбросить зависшие (<span id="s-res-btn">0</span>)
+      </button>
+    </div>
+
+    <div class="content">
+      <div class="tabs">
+        <div class="tab active" data-tab="scan">Сканирование</div>
+        <div class="tab" data-tab="db">Журнал истории</div>
+      </div>
+
+      <div id="tab-scan">
+        <div class="scanner-zone">
+          <div class="scanner-hdr"><div class="scanner-dot"></div>Ожидание сканирования</div>
+          <input class="scan-input" id="scan-input" placeholder="Штрихкод / GTIN / Артикул — поднесите сканер…" autocomplete="off">
+          <div class="scan-hint" id="scan-hint">Сканируйте штрихкод товара → Enter. Сервер выдаст свободный КМ.</div>
+          
+          <div class="autoprint-indicator" id="autoprint-indicator">
+            Режим «Печать сразу» активен
+          </div>
+          <div class="autoprint-indicator" id="bulkmode-indicator" style="background:#fffbeb;border-color:#fde68a;color:var(--amber)">
+            Режим «Массовая печать» — сканируйте GTIN, затем укажите количество КМ
+          </div>
+          
+          <div id="bulk-qty-row" style="display:none;margin-top:10px;padding:12px;background:var(--amber-bg);border:1px solid #fde68a;border-radius:var(--r)">
+            <div style="font-size:12px;color:var(--text2);margin-bottom:8px" id="bulk-qty-info">GTIN: —</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="number" id="bulk-qty-input" min="1" step="1" value="1" class="scan-input" style="font-size:14px;padding:8px 10px;width:120px">
+              <span style="font-size:11px;color:var(--text3)" id="bulk-qty-hint">Enter — подтвердить количество</span>
+              <button class="btn ghost" id="bulk-qty-cancel" style="width:auto;margin-left:auto">Отмена</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="msg" id="msg-bar"><span class="msg-text" id="msg-text"></span></div>
+        
+        <div class="preview-card" id="preview-wrap">
+          <div class="preview-hdr">
+            <span class="preview-hdr-title" id="preview-title">Предпросмотр этикетки</span>
+            <div style="display:flex;gap:6px">
+              <button class="btn ghost" id="btn-reprint">↺ Повтор (без расхода КМ)</button>
+              <button class="btn primary" id="btn-print" style="width:auto;padding:5px 12px">🖨 Печать</button>
+            </div>
+          </div>
+          <div class="preview-body" id="label-render"></div>
+        </div>
+      </div>
+
+      <div id="tab-db" style="display:none">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 10px; align-items:center;">
+            <h3 style="font-size: 14px; color: var(--text2);">История печати (с сервера)</h3>
+            <button class="btn ghost" id="btn-refresh-history">🔄 Обновить</button>
+        </div>
+        <div class="db-card">
+          <div class="db-body">
+            <table class="data-table">
+              <thead><tr><th>Время печати</th><th>GTIN</th><th>Артикул</th><th>КМ (начало)</th><th>Оператор</th></tr></thead>
+              <tbody id="db-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bwip-js/3.4.0/bwip-js-min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  const API_URL = "http://10.47.120.146:8000/api";
+  const WORKSTATION_NAME = 'Terminal';
+  const OPERATOR_NAME = 'WebClient';
+
+  let bwipOk = false;
+  let autoPrint = false;
+  let bulkMode = false;
+  
+  let scanLocked = false;
+  let unconfirmedRows = [];  // Коды, ожидающие подтверждения оператором
+  let lastRenderedRows = []; // Последние отрисованные коды для кнопки "Повтор"
+  let bulkPendingGtin = null;
+
+  const SK_AUTOPRINT = 'cz_autoprint';
+  const SK_BULKMODE  = 'cz_bulkmode';
+
+  function initAutoPrint() {
+    autoPrint = localStorage.getItem(SK_AUTOPRINT) === '1';
+    document.getElementById('autoprint-cb').checked = autoPrint;
+    updateAutoPrintUI();
+  }
+  document.getElementById('autoprint-cb').addEventListener('change', function(){
+    autoPrint = this.checked; 
+    localStorage.setItem(SK_AUTOPRINT, autoPrint?'1':'0');
+    updateAutoPrintUI();
+  });
+  function updateAutoPrintUI() {
+    document.getElementById('autoprint-row').className = 'autoprint-row' + (autoPrint ? ' active' : '');
+    document.getElementById('autoprint-indicator').className = 'autoprint-indicator' + (autoPrint ? ' visible' : '');
+  }
+
+  function initBulkMode() {
+    bulkMode = localStorage.getItem(SK_BULKMODE) === '1';
+    document.getElementById('bulkmode-cb').checked = bulkMode;
+    updateBulkModeUI();
+  }
+  document.getElementById('bulkmode-cb').addEventListener('change', function(){
+    bulkMode = this.checked; 
+    localStorage.setItem(SK_BULKMODE, bulkMode?'1':'0');
+    cancelBulkQty(); 
+    updateBulkModeUI();
+  });
+  function updateBulkModeUI() {
+    document.getElementById('bulkmode-row').className = 'autoprint-row' + (bulkMode ? ' active' : '');
+    document.getElementById('bulkmode-indicator').className = 'autoprint-indicator' + (bulkMode ? ' visible' : '');
+    document.getElementById('scan-hint').textContent = bulkMode
+      ? 'Сканируйте штрихкод товара (GTIN) → Enter, затем укажите количество КМ.'
+      : 'Сканируйте штрихкод товара → Enter. Сервер выдаст свободный КМ.';
+  }
+
+  let msgT;
+  function showMsg(txt, type) {
+    const el = document.getElementById('msg-bar');
+    document.getElementById('msg-text').textContent = txt; 
+    el.className = 'msg visible ' + type;
+    clearTimeout(msgT); 
+    if(type !== 'err') msgT = setTimeout(() => { el.className = 'msg'; }, 8000);
+  }
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  
+  async function fetchStats() {
+    try {
+      let res = await fetch(API_URL + '/stats');
+      if (res.ok) {
+        let data = await res.json();
+        document.getElementById('s-total').textContent = data.total_imported;
+        document.getElementById('s-free').textContent = data.free;
+        document.getElementById('s-used').textContent = data.printed;
+        
+        document.getElementById('s-reserved').textContent = data.reserved;
+        document.getElementById('s-res-btn').textContent = data.reserved;
+        
+        document.getElementById('server-status-badge').className = 'server-status ok';
+        document.getElementById('server-status-badge').innerHTML = '📡 Сервер работает';
+      }
+    } catch (e) {
+      document.getElementById('server-status-badge').className = 'server-status err';
+      document.getElementById('server-status-badge').innerHTML = '⚠️ Сервер недоступен';
+    }
+  }
+
+  async function fetchHistory() {
+    try {
+      let res = await fetch(API_URL + '/history?limit=100');
+      if (res.ok) {
+        let data = await res.json();
+        let tbody = document.getElementById('db-tbody');
+        if (data.items.length === 0) {
+           tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:24px">Журнал пуст</td></tr>';
+           return;
+        }
+        tbody.innerHTML = data.items.map(r => {
+           let dateStr = new Date(r.datetime).toLocaleString('ru-RU');
+           return `<tr>
+              <td style="color:var(--text3);font-size:11px">${dateStr}</td>
+              <td style="font-family:monospace;font-size:11px">${esc(r.gtin)}</td>
+              <td>${esc(r.article || '—')}</td>
+              <td style="font-family:monospace;font-size:11px" title="${esc(r.km)}">${esc(r.km.substring(0,25))}…</td>
+              <td><span class="badge auto">${esc(r.operator)}</span></td>
+           </tr>`;
+        }).join('');
+      }
+    } catch (e) {
+        console.error("Ошибка загрузки истории", e);
+    }
+  }
+
+  document.getElementById('btn-reset-res').addEventListener('click', async () => {
+    try {
+        let res = await fetch(API_URL + '/reset-reservations', { method: 'POST' });
+        let data = await res.json();
+        showMsg(data.message, 'ok');
+        fetchStats();
+    } catch (e) {
+        showMsg('Ошибка сброса резервов', 'err');
+    }
+  });
+
+  document.getElementById('xl-file').addEventListener('change', async function(e){
+    const file = e.target.files[0]; 
+    if(!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('mode', 'append'); 
+    
+    document.getElementById('scan-input').disabled = true;
+    showMsg('⏳ Загрузка новых КМ на сервер...', 'warn');
+    
+    try {
+      let res = await fetch(API_URL + '/import', { method: 'POST', body: formData });
+      let data = await res.json();
+      
+      if (res.ok) {
+        showMsg('✓ Новые КМ добавлены в базу. Строк: ' + data.imported_rows, 'ok');
+        fetchStats();
+      } else {
+        showMsg('Ошибка сервера: ' + (data.detail || 'Неизвестная ошибка'), 'err');
+      }
+    } catch(err) {
+      showMsg('Ошибка соединения с сервером', 'err');
+    } finally {
+      document.getElementById('scan-input').disabled = false;
+      document.getElementById('scan-input').focus();
+      this.value = ''; 
+    }
+  });
+
+  function checkBwip() {
+    const el = document.getElementById('bwip-status');
+    if (typeof bwipjs === 'undefined') {
+        el.textContent = '✗ DataMatrix недоступен'; el.className = 'bwip-status err'; bwipOk = false;
+    } else {
+        bwipOk = true; el.textContent = '✓ DataMatrix готов'; el.className = 'bwip-status ok';
+    }
+  }
+  
+  function makeDM(barcodeText) {
+    if(!bwipOk) return null;
+    const canvas = document.createElement('canvas');
+    try {
+        bwipjs.toCanvas(canvas, { bcid: 'datamatrix', text: barcodeText, scale: 4, padding: 2 });
+        return canvas;
+    } catch(e) { return null; }
+  }
+
+  function makeLabelEl(row) {
+    const wrapper = document.createElement('div'); wrapper.className = 'label-wrapper';
+    const paper = document.createElement('div'); paper.className = 'label-paper';
+    
+    const gtinEl = document.createElement('div'); gtinEl.className = 'lbl-gtin-top'; 
+    gtinEl.textContent = row.gtin; paper.appendChild(gtinEl);
+    
+    const dmSlot = document.createElement('div'); dmSlot.className = 'lbl-dm';
+    const dmCanvas = makeDM(row.barcode);
+    if(dmCanvas) {
+        dmSlot.appendChild(dmCanvas);
+    } else {
+        dmSlot.innerHTML = '<div style="color:red; font-size:10px; border:1px solid red; padding:5px;">Ошибка генерации DM</div>';
+    }
+    paper.appendChild(dmSlot);
+    
+    const kmEl = document.createElement('div'); kmEl.className = 'lbl-km'; 
+    kmEl.textContent = row.km; paper.appendChild(kmEl);
+    
+    wrapper.appendChild(paper);
+    return wrapper;
+  }
+
+  function buildLabelBatch(rows) {
+    const render = document.getElementById('label-render'); render.innerHTML = '';
+    rows.forEach(row => render.appendChild(makeLabelEl(row)));
+    document.getElementById('preview-wrap').classList.add('visible');
+    
+    if (rows.length === 1) {
+        document.getElementById('preview-title').textContent = 'GTIN ' + rows[0].gtin + (rows[0].article ? ' | Арт. ' + rows[0].article : '');
+    } else {
+        document.getElementById('preview-title').textContent = 'GTIN ' + rows[0].gtin + ' — ' + rows.length + ' шт.';
+    }
+    
+    unconfirmedRows = rows; 
+    lastRenderedRows = rows;
+  }
+
+  async function doScan() {
+    const raw = (document.getElementById('scan-input').value || '').trim();
+    document.getElementById('scan-input').value = '';
+    if (!raw) return;
+    
+    if (scanLocked) { showMsg('Ожидание ответа сервера...', 'warn'); return; }
+    
+    let norm = raw.replace(/\s/g,'');
+    if (norm.startsWith('01') && norm.length > 14) norm = norm.substring(2, 16); 
+    
+    let isGtin = /^\d{13,14}$/.test(norm);
+    let searchParam = isGtin ? `gtin=${norm}` : `article=${norm}`;
+
+    if (bulkMode) {
+      scanLocked = true;
+      try {
+        let res = await fetch(`${API_URL}/available?${searchParam}`);
+        let data = await res.json();
+        let freeCount = data.free || 0;
+
+        if (freeCount === 0) {
+            showMsg(`❌ Нет свободных КМ для товара ${norm}`, 'err');
+            scanLocked = false;
+            return; 
+        }
+
+        bulkPendingGtin = norm; 
+        document.getElementById('bulk-qty-info').textContent = `Товар: ${norm} | Свободно КМ: ${freeCount} шт.`;
+        document.getElementById('bulk-qty-row').style.display = '';
+        
+        let qtyInput = document.getElementById('bulk-qty-input');
+        qtyInput.value = '1';
+        qtyInput.max = freeCount;
+        
+        qtyInput.focus();
+        qtyInput.select();
+        
+        showMsg('Укажите количество КМ.', 'ok');
+      } catch(e) {
+          showMsg('Ошибка при проверке доступных КМ', 'err');
+      } finally {
+          scanLocked = false;
+      }
+      return;
+    }
+
+    scanLocked = true;
+    try {
+      let res = await fetch(`${API_URL}/next-code?${searchParam}&operator=${OPERATOR_NAME}&workstation=${WORKSTATION_NAME}`);
+      
+      if (!res.ok) {
+         let err = await res.json().catch(()=>({}));
+         showMsg(err.detail || `❌ Нет свободных КМ для товара ${norm}`, 'err'); 
+         return;
+      }
+      
+      let codeData = await res.json();
+      buildLabelBatch([codeData]);
+      fetchStats();
+      
+      showMsg(`✓ КМ забронирован на сервере. Ожидание печати...`, 'ok');
+      
+      if (autoPrint) {
+         setTimeout(() => { try { window.print(); } catch(e){} }, 100);
+      }
+    } catch(err) {
+      showMsg('Ошибка сети при связи с сервером', 'err');
+    } finally {
+      scanLocked = false;
+      document.getElementById('scan-input').focus();
+    }
+  }
+
+  function cancelBulkQty() { 
+    bulkPendingGtin = null; 
+    document.getElementById('bulk-qty-row').style.display = 'none'; 
+  }
+  
+  document.getElementById('bulk-qty-cancel').addEventListener('click', () => { cancelBulkQty(); document.getElementById('scan-input').focus(); });
+  
+  document.getElementById('bulk-qty-input').addEventListener('keydown', async function(e) { 
+    if(e.key === 'Enter') {
+      e.preventDefault();
+      
+      let qty = parseInt(this.value, 10);
+      if (!qty || qty < 1) return;
+      
+      let targetItem = bulkPendingGtin; 
+      cancelBulkQty(); 
+      
+      scanLocked = true;
+      showMsg(`Получение ${qty} кодов с сервера...`, 'warn');
+      
+      let isGtin = /^\d{13,14}$/.test(targetItem);
+      let searchParam = isGtin ? `gtin=${targetItem}` : `article=${targetItem}`;
+
+      try {
+          let res = await fetch(`${API_URL}/next-codes-bulk?qty=${qty}&${searchParam}&operator=${OPERATOR_NAME}&workstation=${WORKSTATION_NAME}`);
+          if (!res.ok) {
+             let err = await res.json().catch(()=>({}));
+             showMsg(err.detail || 'Свободных КМ для этого товара нет на сервере', 'err');
+             return;
+          }
+          
+          let batch = await res.json();
+          buildLabelBatch(batch);
+          fetchStats();
+          
+          showMsg(`✓ ${batch.length} КМ забронировано. Ожидание печати...`, 'ok');
+          
+          if (autoPrint) {
+             setTimeout(() => { try { window.print(); } catch(e){} }, 100);
+          }
+      } catch(err) {
+          showMsg('Ошибка связи с сервером при массовой выдаче', 'err');
+      } finally {
+          scanLocked = false;
+          document.getElementById('scan-input').focus();
+      }
+    } 
+  });
+
+  let scanTimer;
+  document.getElementById('scan-input').addEventListener('keydown', e => { if(e.key === 'Enter'){ clearTimeout(scanTimer); doScan(); } });
+  document.getElementById('scan-input').addEventListener('input', function(){ clearTimeout(scanTimer); if(this.value.length >= 8) scanTimer = setTimeout(doScan, 400); });
+
+  /* Событие закрытия системного окна печати */
+  window.addEventListener('afterprint', () => {
+    if (!unconfirmedRows || unconfirmedRows.length === 0) return;
+    
+    // Небольшая задержка, чтобы диалоговое окно не заблокировало браузер слишком рано
+    setTimeout(() => {
+        let isSuccess = confirm(`Печать завершена?\n\n[ОК] — Этикетки распечатаны успешно (Списать КМ)\n[ОТМЕНА] — Печать отменена или ошибка (Оставить в резерве)`);
+        
+        if (isSuccess) {
+            unconfirmedRows.forEach(async (row) => {
+               try {
+                   await fetch(API_URL + '/printed', {
+                       method: 'POST',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({ km: row.km, operator: OPERATOR_NAME, workstation: WORKSTATION_NAME })
+                   });
+               } catch (err) { console.error("Ошибка подтверждения КМ:", row.km); }
+            });
+            unconfirmedRows = []; // Очищаем, чтобы не спрашивать дважды
+            showMsg('КМ успешно списаны и добавлены в журнал истории.', 'ok');
+        } else {
+            showMsg('Печать отменена. КМ зависли в резерве. Сбросьте их кнопкой слева.', 'warn');
+        }
+        
+        setTimeout(() => { fetchStats(); fetchHistory(); }, 500);
+    }, 400);
+  });
+
+  document.getElementById('btn-print').addEventListener('click', () => {
+    if(!lastRenderedRows || lastRenderedRows.length === 0) { showMsg('Нет этикетки', 'warn'); return; }
+    unconfirmedRows = lastRenderedRows; // Восстанавливаем буфер для подтверждения
+    try { window.print(); } catch(e) {}
+  });
+  
+  document.getElementById('btn-reprint').addEventListener('click', () => {
+    if(!lastRenderedRows || lastRenderedRows.length === 0) { showMsg('Нет последней этикетки', 'warn'); return; }
+    buildLabelBatch(lastRenderedRows);
+    showMsg('Повторный предпросмотр — новый КМ с сервера не запрашивался', 'ok');
+  });
+
+  document.getElementById('btn-refresh-history').addEventListener('click', fetchHistory);
+
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      this.classList.add('active');
+      let n = this.dataset.tab;
+      document.getElementById('tab-scan').style.display = n === 'scan' ? '' : 'none';
+      document.getElementById('tab-db').style.display   = n === 'db' ? '' : 'none';
+      if (n === 'db') fetchHistory();
+    });
+  });
+
+  initAutoPrint(); 
+  initBulkMode();
+  if (typeof bwipjs !== 'undefined') { checkBwip(); } else { window.addEventListener('load', () => setTimeout(checkBwip, 500)); }
+  
+  fetchStats();
+  setInterval(fetchStats, 10000);
+
+})();
+</script>
+</body>
+</html>

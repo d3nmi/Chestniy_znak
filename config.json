@@ -1,0 +1,7 @@
+{
+    "port": 8000,
+    "db_path": "sqlite+aiosqlite:///./database/km.db",
+    "reservation_timeout_minutes": 5,
+    "max_history_records": 100000,
+    "log_level": "INFO"
+}
